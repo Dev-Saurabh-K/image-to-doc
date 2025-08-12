@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image to PDF/DOCX Converter</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.0.2/docx.min.js"></script>
+<style>
+    body {
+        font-family: 'Poppins', sans-serif;
+        background: #f5f6fa;
+        margin: 0;
+        padding: 0;
+    }
+    header {
+        background: #4CAF50;
+        color: white;
+        text-align: center;
+        padding: 1rem;
+        font-size: 1.5rem;
+    }
+    .container {
+        max-width: 800px;
+        margin: auto;
+        padding: 20px;
+    }
+    .upload-box {
+        border: 2px dashed #4CAF50;
+        background: white;
+        padding: 30px;
+        text-align: center;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: 0.3s;
+    }
+    .upload-box.dragover {
+        background: #e8f5e9;
+        border-color: #388e3c;
+    }
+    .preview {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        margin-top: 20px;
+    }
+    .image-card {
+        position: relative;
+        width: 150px;
+        height: 150px;
+        overflow: hidden;
+        border-radius: 8px;
+        box-shadow: 0px 2px 5px rgba(0,0,0,0.1);
+    }
+    .image-card img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .remove-btn {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        background: rgba(255, 0, 0, 0.7);
+        border: none;
+        color: white;
+        padding: 5px 8px;
+        cursor: pointer;
+        border-radius: 50%;
+    }
+    .buttons {
+        margin-top: 20px;
+        display: flex;
+        gap: 10px;
+    }
+    button {
+        padding: 10px 15px;
+        border: none;
+        background: #4CAF50;
+        color: white;
+        cursor: pointer;
+        border-radius: 5px;
+        font-size: 1rem;
+        transition: 0.3s;
+    }
+    button:hover {
+        background: #45a049;
+    }
+    @media (max-width: 600px) {
+        .image-card {
+            width: 100px;
+            height: 100px;
+        }
+    }
+</style>
+</head>
+<body>
+
+<header>📄 Image to PDF/DOCX Converter</header>
+
+<div class="container">
+    <input type="file" id="fileInput" multiple accept="image/*" hidden>
+    <div class="upload-box" id="uploadBox">
+        <p>📤 Drag & Drop Images or <span style="color:#4CAF50; font-weight:600;">Click to Upload</span></p>
+    </div>
+
+    <div class="preview" id="preview"></div>
+
+    <div class="buttons">
+        <button id="downloadPdf">Download as PDF</button>
+        <button id="downloadDocx">Download as DOCX</button>
+    </div>
+</div>
+
+<script>
+const fileInput = document.getElementById('fileInput');
+const uploadBox = document.getElementById('uploadBox');
+const preview = document.getElementById('preview');
+let images = [];
+
+// Handle click
+uploadBox.addEventListener('click', () => fileInput.click());
+
+// Handle file selection
+fileInput.addEventListener('change', (e) => {
+    handleFiles(e.target.files);
+});
+
+// Drag & drop events
+uploadBox.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadBox.classList.add('dragover');
+});
+uploadBox.addEventListener('dragleave', () => {
+    uploadBox.classList.remove('dragover');
+});
+uploadBox.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadBox.classList.remove('dragover');
+    handleFiles(e.dataTransfer.files);
+});
+
+function handleFiles(files) {
+    for (let file of files) {
+        if (!file.type.startsWith('image/')) continue;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            images.push(e.target.result);
+            updatePreview();
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function updatePreview() {
+    preview.innerHTML = '';
+    images.forEach((img, index) => {
+        const div = document.createElement('div');
+        div.classList.add('image-card');
+        div.innerHTML = `
+            <img src="${img}">
+            <button class="remove-btn" onclick="removeImage(${index})">×</button>
+        `;
+        preview.appendChild(div);
+    });
+}
+
+function removeImage(index) {
+    images.splice(index, 1);
+    updatePreview();
+}
+
+// PDF Download
+document.getElementById('downloadPdf').addEventListener('click', () => {
+    if (images.length === 0) return alert("Please upload images first!");
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF();
+    images.forEach((img, i) => {
+        if (i > 0) pdf.addPage();
+        pdf.addImage(img, 'JPEG', 10, 10, 180, 160);
+    });
+    pdf.save('images.pdf');
+});
+
+// DOCX Download
+document.getElementById('downloadDocx').addEventListener('click', async () => {
+    if (images.length === 0) return alert("Please upload images first!");
+    const doc = new docx.Document();
+    images.forEach(img => {
+        doc.addSection({
+            children: [
+                new docx.Paragraph({
+                    children: [
+                        new docx.ImageRun({
+                            data: dataURLtoUint8Array(img),
+                            transformation: { width: 500, height: 400 }
+                        })
+                    ]
+                })
+            ]
+        });
+    });
+
+    const blob = await docx.Packer.toBlob(doc);
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'images.docx';
+    link.click();
+});
+
+function dataURLtoUint8Array(dataURL) {
+    const parts = dataURL.split(';base64,');
+    const byteString = atob(parts[1]);
+    const uint8Array = new Uint8Array(byteString.length);
+    for (let i = 0; i < byteString.length; i++) {
+        uint8Array[i] = byteString.charCodeAt(i);
+    }
+    return uint8Array;
+}
+</script>
+
+</body>
+</html>
